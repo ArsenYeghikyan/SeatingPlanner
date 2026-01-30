@@ -1,15 +1,537 @@
 @page "/"
+@using EventSeatingPlanner.App.Models
+@inject EventSeatingPlanner.App.Services.EventSeatingApiClient Api
 
-<h1>Event Seating Planner</h1>
-<p>Добро пожаловать в MVP-панель планирования рассадки гостей.</p>
+<SectionCard Title="Обзор проекта" Subtitle="Стартовая панель администратора мероприятия">
+    <div class="grid grid-2">
+        <div>
+            <p>Создавайте мероприятия, управляйте столами и гостями, фиксируйте рассадку и готовьте печать PDF.</p>
+            <div class="inline" style="margin-top: 12px;">
+                <span class="badge">Событий: @(_events?.Count ?? 0)</span>
+                <span class="badge">Столов: @(_tables?.Count ?? 0)</span>
+                <span class="badge">Гостей: @(_guests?.Count ?? 0)</span>
+            </div>
+        </div>
+        <div class="card" style="padding: 16px;">
+            <h3>Текущее мероприятие</h3>
+            @if (_selectedEvent is not null)
+            {
+                <p><strong>@_selectedEvent.Title</strong></p>
+                <p class="muted">@_selectedEvent.Date.ToString("dd.MM.yyyy") • @_selectedEvent.Location</p>
+                <p>@_selectedEvent.Notes</p>
+            }
+            else
+            {
+                <p class="muted">Выберите мероприятие из списка ниже или создайте новое.</p>
+            }
+        </div>
+    </div>
+</SectionCard>
 
-<section>
-    <h2>Доступные модули</h2>
-    <ul>
-        <li>Мероприятия</li>
-        <li>Столы</li>
-        <li>Гости</li>
-        <li>Рассадка</li>
-        <li>Печать PDF</li>
-    </ul>
+<section class="grid grid-2">
+    <SectionCard Title="Мероприятия" Subtitle="Создайте или выберите событие">
+        @if (_isLoadingEvents)
+        {
+            <LoadingState Message="Загрузка мероприятий..." />
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert">@_error</div>
+        }
+        else
+        {
+            <div class="form">
+                <div class="form__row">
+                    <label>Выберите мероприятие</label>
+                    <select @onchange="OnEventSelected">
+                        <option value="">-- Не выбрано --</option>
+                        @if (_events is not null)
+                        {
+                            @foreach (var item in _events)
+                            {
+                                <option value="@item.Id" selected="@(_selectedEvent?.Id == item.Id)">@item.Title</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top: 16px;">
+                <h3>Создать мероприятие</h3>
+                <EditForm Model="_newEvent" OnValidSubmit="CreateEventAsync" class="form">
+                    <div class="form__row">
+                        <label>Название</label>
+                        <InputText @bind-Value="_newEvent.Title" />
+                    </div>
+                    <div class="form__row">
+                        <label>Дата</label>
+                        <InputDate @bind-Value="_newEvent.Date" />
+                    </div>
+                    <div class="form__row">
+                        <label>Локация</label>
+                        <InputText @bind-Value="_newEvent.Location" />
+                    </div>
+                    <div class="form__row">
+                        <label>Заметки</label>
+                        <InputTextArea @bind-Value="_newEvent.Notes" />
+                    </div>
+                    <button class="button" type="submit">Создать</button>
+                </EditForm>
+            </div>
+        }
+    </SectionCard>
+
+    <SectionCard Title="Настройки печати" Subtitle="Стиль PDF-документа">
+        @if (_selectedEvent is null)
+        {
+            <p class="muted">Сначала выберите мероприятие.</p>
+        }
+        else if (_isLoadingSettings)
+        {
+            <LoadingState Message="Загрузка настроек печати..." />
+        }
+        else
+        {
+            <EditForm Model="_printSettings" OnValidSubmit="UpdatePrintSettingsAsync" class="form">
+                <div class="form__row">
+                    <label>Шрифт</label>
+                    <InputText @bind-Value="_printSettings.FontKey" />
+                </div>
+                <div class="form__row">
+                    <label>Размер заголовка</label>
+                    <InputNumber @bind-Value="_printSettings.TitleFontSize" />
+                </div>
+                <div class="form__row">
+                    <label>Размер текста</label>
+                    <InputNumber @bind-Value="_printSettings.BodyFontSize" />
+                </div>
+                <div class="form__row">
+                    <label>Цвет текста</label>
+                    <InputText @bind-Value="_printSettings.TextColorHex" />
+                </div>
+                <div class="inline">
+                    <button class="button" type="submit" disabled="@_isSavingSettings">Сохранить</button>
+                    @if (!string.IsNullOrWhiteSpace(_settingsStatus))
+                    {
+                        <span class="@(_settingsStatusIsError ? "warning" : "success")">@_settingsStatus</span>
+                    }
+                </div>
+            </EditForm>
+        }
+    </SectionCard>
 </section>
+
+<section class="grid grid-2">
+    <SectionCard Title="Столы" Subtitle="Добавляйте столы и вместимость">
+        @if (_selectedEvent is null)
+        {
+            <p class="muted">Выберите мероприятие, чтобы управлять столами.</p>
+        }
+        else
+        {
+            <div class="form">
+                <div class="form__row">
+                    <label>Название стола</label>
+                    <InputText @bind-Value="_newTable.Name" />
+                </div>
+                <div class="form__row">
+                    <label>Вместимость</label>
+                    <InputNumber @bind-Value="_newTable.Capacity" />
+                </div>
+                <div class="form__row">
+                    <label>Порядок</label>
+                    <InputNumber @bind-Value="_newTable.SortOrder" />
+                </div>
+                <button class="button" @onclick="CreateTableAsync" disabled="@_isSavingTable">Добавить стол</button>
+            </div>
+
+            @if (_tables is not null && _tables.Count > 0)
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Вместимость</th>
+                            <th>Порядок</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var table in _tables)
+                        {
+                            <tr>
+                                <td>@table.Name</td>
+                                <td>@table.Capacity</td>
+                                <td>@table.SortOrder</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="muted">Столы пока не добавлены.</p>
+            }
+        }
+    </SectionCard>
+
+    <SectionCard Title="Гости" Subtitle="Добавляйте гостей мероприятия">
+        @if (_selectedEvent is null)
+        {
+            <p class="muted">Выберите мероприятие, чтобы управлять гостями.</p>
+        }
+        else
+        {
+            <div class="form">
+                <div class="form__row">
+                    <label>ФИО</label>
+                    <InputText @bind-Value="_newGuest.FullName" />
+                </div>
+                <div class="form__row">
+                    <label>Телефон</label>
+                    <InputText @bind-Value="_newGuest.Phone" />
+                </div>
+                <div class="form__row">
+                    <label>Email</label>
+                    <InputText @bind-Value="_newGuest.Email" />
+                </div>
+                <div class="form__row">
+                    <label>Категория</label>
+                    <InputText @bind-Value="_newGuest.Category" />
+                </div>
+                <div class="form__row">
+                    <label>Заметки</label>
+                    <InputTextArea @bind-Value="_newGuest.Notes" />
+                </div>
+                <button class="button" @onclick="CreateGuestAsync" disabled="@_isSavingGuest">Добавить гостя</button>
+            </div>
+
+            @if (_guests is not null && _guests.Count > 0)
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ФИО</th>
+                            <th>Телефон</th>
+                            <th>Email</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var guest in _guests)
+                        {
+                            <tr>
+                                <td>@guest.FullName</td>
+                                <td>@guest.Phone</td>
+                                <td>@guest.Email</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="muted">Гости пока не добавлены.</p>
+            }
+        }
+    </SectionCard>
+</section>
+
+<SectionCard Title="Рассадка" Subtitle="Назначение гостей за столы">
+    @if (_selectedEvent is null)
+    {
+        <p class="muted">Выберите мероприятие, чтобы управлять рассадкой.</p>
+    }
+    else
+    {
+        <div class="form">
+            <div class="form__row">
+                <label>Стол</label>
+                <select @bind="_newAssignment.TableId">
+                    <option value="">-- Выберите стол --</option>
+                    @if (_tables is not null)
+                    {
+                        @foreach (var table in _tables)
+                        {
+                            <option value="@table.Id">@table.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="form__row">
+                <label>Гость</label>
+                <select @bind="_newAssignment.GuestId">
+                    <option value="">-- Выберите гостя --</option>
+                    @if (_guests is not null)
+                    {
+                        @foreach (var guest in _guests)
+                        {
+                            <option value="@guest.Id">@guest.FullName</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="form__row">
+                <label>Номер места</label>
+                <InputNumber @bind-Value="_newAssignment.SeatNumber" />
+            </div>
+            <button class="button" @onclick="CreateAssignmentAsync" disabled="@_isSavingAssignment">Назначить</button>
+        </div>
+
+        @if (_assignments is not null && _assignments.Count > 0)
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Стол</th>
+                        <th>Гость</th>
+                        <th>Место</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var assignment in _assignments)
+                    {
+                        var table = _tables?.FirstOrDefault(t => t.Id == assignment.TableId);
+                        var guest = _guests?.FirstOrDefault(g => g.Id == assignment.GuestId);
+                        <tr>
+                            <td>@(table?.Name ?? "—")</td>
+                            <td>@(guest?.FullName ?? "—")</td>
+                            <td>@(assignment.SeatNumber?.ToString() ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="muted">Рассадка пока не настроена.</p>
+        }
+    }
+</SectionCard>
+
+@code {
+    private IReadOnlyList<EventSummaryDto>? _events;
+    private EventDetailDto? _selectedEvent;
+    private IReadOnlyList<TableDto>? _tables;
+    private IReadOnlyList<GuestDto>? _guests;
+    private IReadOnlyList<AssignmentDto>? _assignments;
+    private string? _error;
+    private bool _isLoadingEvents = true;
+    private bool _isLoadingSettings;
+    private bool _isSavingTable;
+    private bool _isSavingGuest;
+    private bool _isSavingAssignment;
+    private bool _isSavingSettings;
+    private string? _settingsStatus;
+    private bool _settingsStatusIsError;
+
+    private CreateEventRequest _newEvent = new("", DateOnly.FromDateTime(DateTime.Today), null, null);
+    private CreateTableRequest _newTable = new("", 8, 1);
+    private CreateGuestRequest _newGuest = new("", null, null, null, null);
+    private CreateAssignmentRequest _newAssignment = new(Guid.Empty, Guid.Empty, null);
+    private UpdatePrintSettingsRequest _printSettings = new(null, "Inter", 20, 12, "#111827");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEventsAsync();
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        try
+        {
+            _isLoadingEvents = true;
+            _events = await Api.GetEventsAsync();
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось загрузить данные: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingEvents = false;
+        }
+    }
+
+    private async Task OnEventSelected(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var eventId))
+        {
+            await SelectEventAsync(eventId);
+        }
+        else
+        {
+            _selectedEvent = null;
+            _tables = null;
+            _guests = null;
+            _assignments = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectEventAsync(Guid eventId)
+    {
+        _selectedEvent = await Api.GetEventAsync(eventId);
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _tables = await Api.GetTablesAsync(eventId);
+        _guests = await Api.GetGuestsAsync(eventId);
+        _assignments = await Api.GetAssignmentsAsync(eventId);
+        await LoadPrintSettingsAsync();
+    }
+
+    private async Task LoadPrintSettingsAsync()
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _isLoadingSettings = true;
+        _settingsStatus = null;
+        _settingsStatusIsError = false;
+        try
+        {
+            var settings = await Api.GetPrintSettingsAsync(_selectedEvent.Id);
+            if (settings is not null)
+            {
+                _printSettings = new UpdatePrintSettingsRequest(
+                    settings.BackgroundAssetId,
+                    settings.FontKey,
+                    settings.TitleFontSize,
+                    settings.BodyFontSize,
+                    settings.TextColorHex);
+            }
+        }
+        catch (Exception ex)
+        {
+            _settingsStatus = $"Ошибка загрузки: {ex.Message}";
+            _settingsStatusIsError = true;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
+    }
+
+    private async Task CreateEventAsync()
+    {
+        try
+        {
+            var created = await Api.CreateEventAsync(_newEvent);
+            _events = await Api.GetEventsAsync();
+            await SelectEventAsync(created.Id);
+            _newEvent = new CreateEventRequest("", DateOnly.FromDateTime(DateTime.Today), null, null);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось создать мероприятие: {ex.Message}";
+        }
+    }
+
+    private async Task CreateTableAsync()
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _isSavingTable = true;
+        try
+        {
+            await Api.CreateTableAsync(_selectedEvent.Id, _newTable);
+            _tables = await Api.GetTablesAsync(_selectedEvent.Id);
+            _newTable = new CreateTableRequest("", 8, 1);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось добавить стол: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingTable = false;
+        }
+    }
+
+    private async Task CreateGuestAsync()
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _isSavingGuest = true;
+        try
+        {
+            await Api.CreateGuestAsync(_selectedEvent.Id, _newGuest);
+            _guests = await Api.GetGuestsAsync(_selectedEvent.Id);
+            _newGuest = new CreateGuestRequest("", null, null, null, null);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось добавить гостя: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingGuest = false;
+        }
+    }
+
+    private async Task CreateAssignmentAsync()
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        if (_newAssignment.TableId == Guid.Empty || _newAssignment.GuestId == Guid.Empty)
+        {
+            _error = "Выберите стол и гостя перед назначением.";
+            return;
+        }
+
+        _isSavingAssignment = true;
+        try
+        {
+            await Api.CreateAssignmentAsync(_selectedEvent.Id, _newAssignment);
+            _assignments = await Api.GetAssignmentsAsync(_selectedEvent.Id);
+            _newAssignment = new CreateAssignmentRequest(Guid.Empty, Guid.Empty, null);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось назначить гостя: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingAssignment = false;
+        }
+    }
+
+    private async Task UpdatePrintSettingsAsync()
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _isSavingSettings = true;
+        _settingsStatus = null;
+        _settingsStatusIsError = false;
+        try
+        {
+            await Api.UpdatePrintSettingsAsync(_selectedEvent.Id, _printSettings);
+            _settingsStatus = "Настройки сохранены";
+        }
+        catch (Exception ex)
+        {
+            _settingsStatus = $"Ошибка сохранения: {ex.Message}";
+            _settingsStatusIsError = true;
+        }
+        finally
+        {
+            _isSavingSettings = false;
+        }
+    }
+}
