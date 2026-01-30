@@ -36,6 +36,12 @@ using (var scope = app.Services.CreateScope())
     await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
 }
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<EventSeatingPlanner.Infrastructure.Persistence.ApplicationDbContext>();
+    await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+}
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
