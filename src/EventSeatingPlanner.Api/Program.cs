@@ -4,7 +4,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Event Seating Planner API",
+        Version = "v1"
+    });
+});
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IEventService, EventSeatingPlanner.Application.Services.EventService>();
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.ITableService, EventSeatingPlanner.Application.Services.TableService>();
@@ -18,7 +25,16 @@ builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.I
 var app = builder.Build();
 
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Event Seating Planner API v1");
+});
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<EventSeatingPlanner.Infrastructure.Persistence.ApplicationDbContext>();
+    await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+}
 
 using (var scope = app.Services.CreateScope())
 {
