@@ -1,9 +1,11 @@
 using EventSeatingPlanner.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventSeatingPlanner.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/events/{eventId:guid}/pdf")]
 public sealed class PdfExportController : ControllerBase
 {

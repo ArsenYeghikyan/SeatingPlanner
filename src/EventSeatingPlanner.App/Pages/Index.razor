@@ -1,7 +1,20 @@
 @page "/"
 @using EventSeatingPlanner.App.Models
 @inject EventSeatingPlanner.App.Services.EventSeatingApiClient Api
+@inject EventSeatingPlanner.App.Services.AuthService AuthService
 
+@if (!AuthService.IsAuthenticated)
+{
+    <SectionCard Title="Требуется вход" Subtitle="Чтобы работать с мероприятиями, войдите в систему">
+        <p>Используйте регистрацию или вход, чтобы получить JWT токен и открыть доступ к API.</p>
+        <div class="inline" style="margin-top: 12px;">
+            <a class="button" href="login">Войти</a>
+            <a class="button ghost" href="register">Регистрация</a>
+        </div>
+    </SectionCard>
+}
+else
+{
 <SectionCard Title="Обзор проекта" Subtitle="Стартовая панель администратора мероприятия">
     <div class="grid grid-2">
         <div>
@@ -93,7 +106,7 @@
         else
         {
             <div class="inline" style="margin-bottom: 12px;">
-                <a class="button ghost" href="api/events/@_selectedEvent.Id/pdf" target="_blank">Скачать PDF</a>
+                <a class="button ghost" href="@BuildAuthorizedUrl($"api/events/{_selectedEvent.Id}/pdf")" target="_blank">Скачать PDF</a>
                 <span class="badge success">PDF готов к печати</span>
             </div>
 
@@ -142,7 +155,7 @@
                                 <td>@asset.FileName</td>
                                 <td>@asset.Type</td>
                                 <td>@FormatBytes(asset.SizeBytes)</td>
-                                <td><a class="button ghost" href="api/assets/@asset.Id" target="_blank">Скачать</a></td>
+                                <td><a class="button ghost" href="@BuildAuthorizedUrl($"api/assets/{asset.Id}")" target="_blank">Скачать</a></td>
                             </tr>
                         }
                     </tbody>
@@ -199,6 +212,7 @@
         }
     </SectionCard>
 </section>
+}
 
 <section class="grid grid-2">
     <SectionCard Title="Столы" Subtitle="Добавляйте столы и вместимость">
@@ -424,7 +438,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadEventsAsync();
+        if (AuthService.IsAuthenticated)
+        {
+            await LoadEventsAsync();
+        }
+        else
+        {
+            _isLoadingEvents = false;
+        }
     }
 
     private async Task LoadEventsAsync()
@@ -443,6 +464,16 @@
         {
             _isLoadingEvents = false;
         }
+    }
+
+    private string BuildAuthorizedUrl(string path)
+    {
+        if (string.IsNullOrWhiteSpace(AuthService.Token))
+        {
+            return path;
+        }
+
+        return $"{path}?access_token={Uri.EscapeDataString(AuthService.Token)}";
     }
 
     private async Task OnEventSelected(ChangeEventArgs args)

@@ -1,13 +1,15 @@
 using EventSeatingPlanner.Application.DTOs.Assets;
 using EventSeatingPlanner.Application.Interfaces.Services;
+using EventSeatingPlanner.Api.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventSeatingPlanner.Api.Controllers;
 
 [ApiController]
+[Authorize]
 public sealed class AssetsController : ControllerBase
 {
-    private static readonly Guid DemoOwnerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private readonly IAssetService _assetService;
     private readonly IAssetStorage _assetStorage;
 
@@ -20,7 +22,7 @@ public sealed class AssetsController : ControllerBase
     [HttpGet("api/events/{eventId:guid}/assets")]
     public async Task<ActionResult<IReadOnlyList<AssetDto>>> List(Guid eventId, CancellationToken cancellationToken)
     {
-        var assets = await _assetService.ListByEventAsync(DemoOwnerId, eventId, cancellationToken);
+        var assets = await _assetService.ListByEventAsync(User.GetUserId(), eventId, cancellationToken);
         return Ok(assets);
     }
 
@@ -39,7 +41,7 @@ public sealed class AssetsController : ControllerBase
         await using var stream = file.OpenReadStream();
         var storageResult = await _assetStorage.SaveAsync(file.FileName, file.ContentType, stream, cancellationToken);
         var asset = await _assetService.CreateAsync(
-            DemoOwnerId,
+            User.GetUserId(),
             eventId,
             assetType,
             file.FileName,
