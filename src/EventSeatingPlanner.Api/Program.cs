@@ -1,6 +1,8 @@
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Repositories.IEventRepository, EventSeatingPlanner.Infrastructure.Repositories.InMemoryEventRepository>();
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Repositories.ITableRepository, EventSeatingPlanner.Infrastructure.Repositories.InMemoryTableRepository>();
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Repositories.IGuestRepository, EventSeatingPlanner.Infrastructure.Repositories.InMemoryGuestRepository>();
@@ -17,6 +19,9 @@ builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Service
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssetService, EventSeatingPlanner.Application.Services.AssetService>();
 
 var app = builder.Build();
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
