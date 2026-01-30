@@ -5,6 +5,7 @@ namespace EventSeatingPlanner.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
+    public DbSet<User> Users => Set<User>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Table> Tables => Set<Table>();
     public DbSet<Guest> Guests => Set<Guest>();
@@ -14,6 +15,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(u => u.Id);
+            entity.Property(u => u.Email).HasColumnName("email");
+            entity.Property(u => u.PasswordHash).HasColumnName("password_hash");
+            entity.Property(u => u.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(u => u.Email).IsUnique();
+        });
+
         modelBuilder.Entity<Event>(entity =>
         {
             entity.ToTable("events");

@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentRepository, PostgresAssignmentRepository>();
         services.AddScoped<IPrintSettingsRepository, PostgresPrintSettingsRepository>();
         services.AddScoped<IAssetRepository, PostgresAssetRepository>();
+        services.AddScoped<IUserRepository, PostgresUserRepository>();
 
         return services;
     }

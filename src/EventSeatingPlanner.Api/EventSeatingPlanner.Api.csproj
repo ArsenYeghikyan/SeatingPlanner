@@ -7,11 +7,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\\EventSeatingPlanner.Application\\EventSeatingPlanner.Application.csproj" />
+    <ProjectReference Include="..\\EventSeatingPlanner.App\\EventSeatingPlanner.App.csproj" />
     <ProjectReference Include="..\\EventSeatingPlanner.Infrastructure\\EventSeatingPlanner.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

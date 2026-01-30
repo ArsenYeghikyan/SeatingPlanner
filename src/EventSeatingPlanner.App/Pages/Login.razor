@@ -1,0 +1,47 @@
+@page "/login"
+@using EventSeatingPlanner.App.Models
+@inject EventSeatingPlanner.App.Services.AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<SectionCard Title="Вход" Subtitle="Используйте email и пароль для доступа">
+    <EditForm Model="_model" OnValidSubmit="HandleLoginAsync" class="form">
+        <div class="form__row">
+            <label>Email</label>
+            <InputText @bind-Value="_model.Email" />
+        </div>
+        <div class="form__row">
+            <label>Пароль</label>
+            <InputText @bind-Value="_model.Password" type="password" />
+        </div>
+        <button class="button" type="submit" disabled="@_isBusy">Войти</button>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert">@_error</div>
+        }
+    </EditForm>
+</SectionCard>
+
+@code {
+    private LoginRequest _model = new(string.Empty, string.Empty);
+    private string? _error;
+    private bool _isBusy;
+
+    private async Task HandleLoginAsync()
+    {
+        _error = null;
+        _isBusy = true;
+        try
+        {
+            await AuthService.LoginAsync(_model);
+            NavigationManager.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Ошибка входа: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+}

@@ -1,6 +1,12 @@
+using System.Text;
+using EventSeatingPlanner.Api.Authentication;
+using EventSeatingPlanner.Application.Entities;
 using EventSeatingPlanner.Infrastructure;
 using EventSeatingPlanner.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +18,31 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Event Seating Planner API",
         Version = "v1"
+    });
+
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Р’РІРµРґРёС‚Рµ JWT С‚РѕРєРµРЅ РІ С„РѕСЂРјР°С‚Рµ: Bearer {token}"
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
@@ -26,11 +57,55 @@ builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.I
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IPrintSettingsService, EventSeatingPlanner.Application.Services.PrintSettingsService>();
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IAssetService, EventSeatingPlanner.Application.Services.AssetService>();
 
-// PDF export (если реализация в Infrastructure — ок)
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
+// PDF export (implementation in Infrastructure)
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IPdfExportService, EventSeatingPlanner.Infrastructure.Services.PdfExportService>();
 
-// Storage (для MVP ok, потом заменить на файловое/S3)
+// Storage (for MVP is ok, can be swapped for cloud later)
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssetStorage, EventSeatingPlanner.Infrastructure.Storage.InMemoryAssetStorage>();
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
+if (jwtOptions is null || string.IsNullOrWhiteSpace(jwtOptions.Key))
+{
+    throw new InvalidOperationException("JWT configuration is missing.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key))
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrWhiteSpace(accessToken)
+                    && (path.StartsWithSegments("/api/assets")
+                        || (path.StartsWithSegments("/api/events") && path.Value?.EndsWith("/pdf", StringComparison.OrdinalIgnoreCase) == true)))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -43,21 +118,24 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 
-// если добавишь auth — будет готово
+app.UseAuthentication();
 app.UseAuthorization();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    // Рекомендовано вместо EnsureCreated (особенно если будут миграции)
+    // Apply migrations
     await db.Database.MigrateAsync();
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();
-

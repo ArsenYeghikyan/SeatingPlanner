@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@inject EventSeatingPlanner.App.Services.AuthService AuthService
+@inject NavigationManager NavigationManager
 
 <div class="app-shell">
     <header class="app-header">
@@ -6,10 +8,34 @@
             <h1>Event Seating Planner</h1>
             <p class="muted">Планирование рассадки и подготовка PDF.</p>
         </div>
-        <div class="header-pill">MVP Demo</div>
+        <div class="inline">
+            @if (AuthService.IsAuthenticated)
+            {
+                <span class="badge success">Вошли как @AuthService.Email</span>
+                <button class="button ghost" @onclick="LogoutAsync">Выйти</button>
+            }
+            else
+            {
+                <a class="button ghost" href="login">Вход</a>
+                <a class="button" href="register">Регистрация</a>
+            }
+        </div>
     </header>
 
     <main class="app-main">
         @Body
     </main>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+    }
+
+    private async Task LogoutAsync()
+    {
+        await AuthService.LogoutAsync();
+        NavigationManager.NavigateTo("login");
+    }
+}
