@@ -11,6 +11,7 @@ builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Service
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IGuestService, EventSeatingPlanner.Application.Services.GuestService>();
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssignmentService, EventSeatingPlanner.Application.Services.AssignmentService>();
 builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IPrintSettingsService, EventSeatingPlanner.Application.Services.PrintSettingsService>();
+builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IPdfExportService, EventSeatingPlanner.Infrastructure.Services.PdfExportService>();
 
 var app = builder.Build();
 

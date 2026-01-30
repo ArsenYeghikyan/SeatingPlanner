@@ -92,6 +92,11 @@
         }
         else
         {
+            <div class="inline" style="margin-bottom: 12px;">
+                <a class="button ghost" href="api/events/@_selectedEvent.Id/pdf" target="_blank">Скачать PDF</a>
+                <span class="badge success">PDF готов к печати</span>
+            </div>
+
             <EditForm Model="_printSettings" OnValidSubmit="UpdatePrintSettingsAsync" class="form">
                 <div class="form__row">
                     <label>Шрифт</label>
