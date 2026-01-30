@@ -1,0 +1,110 @@
+@inject EventSeatingPlanner.App.Services.AuthState AuthState
+@inject EventSeatingPlanner.App.Services.AuthApiClient AuthApi
+
+@if (AuthState.IsAuthenticated)
+{
+    <div class="inline" style="justify-content: space-between; align-items: center;">
+        <span class="badge success">Вход выполнен: @AuthState.Email</span>
+        <button class="button ghost" @onclick="Logout">Выйти</button>
+    </div>
+    @ChildContent
+}
+else
+{
+    <div class="grid grid-2">
+        <SectionCard Title="Регистрация" Subtitle="Создайте аккаунт для работы">
+            <EditForm Model="_register" OnValidSubmit="RegisterAsync" class="form">
+                <div class="form__row">
+                    <label>Email</label>
+                    <InputText @bind-Value="_register.Email" />
+                </div>
+                <div class="form__row">
+                    <label>Пароль</label>
+                    <InputText @bind-Value="_register.Password" type="password" />
+                </div>
+                <div class="form__row">
+                    <label>Имя</label>
+                    <InputText @bind-Value="_register.FullName" />
+                </div>
+                <button class="button" type="submit" disabled="@_isBusy">Зарегистрироваться</button>
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <p class="auth-message @(_isError ? "warning" : "success")">@_message</p>
+                }
+            </EditForm>
+        </SectionCard>
+        <SectionCard Title="Вход" Subtitle="Используйте существующий аккаунт">
+            <EditForm Model="_login" OnValidSubmit="LoginAsync" class="form">
+                <div class="form__row">
+                    <label>Email</label>
+                    <InputText @bind-Value="_login.Email" />
+                </div>
+                <div class="form__row">
+                    <label>Пароль</label>
+                    <InputText @bind-Value="_login.Password" type="password" />
+                </div>
+                <button class="button" type="submit" disabled="@_isBusy">Войти</button>
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <p class="auth-message @(_isError ? "warning" : "success")">@_message</p>
+                }
+            </EditForm>
+        </SectionCard>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private RegisterRequest _register = new("", "", null);
+    private LoginRequest _login = new("", "");
+    private bool _isBusy;
+    private string? _message;
+    private bool _isError;
+
+    private async Task RegisterAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+        try
+        {
+            await AuthApi.RegisterAsync(_register);
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+        try
+        {
+            await AuthApi.LoginAsync(_login);
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void Logout()
+    {
+        AuthApi.Logout();
+    }
+}
