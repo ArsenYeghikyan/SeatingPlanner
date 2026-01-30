@@ -1,61 +1,33 @@
-using Dapper;
 using EventSeatingPlanner.Application.Entities;
 using EventSeatingPlanner.Application.Interfaces.Repositories;
-using Npgsql;
+using EventSeatingPlanner.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventSeatingPlanner.Infrastructure.Repositories;
 
-public sealed class PostgresPrintSettingsRepository(NpgsqlDataSource dataSource) : IPrintSettingsRepository
+public sealed class PostgresPrintSettingsRepository(ApplicationDbContext dbContext) : IPrintSettingsRepository
 {
     public async Task<EventPrintSettings?> GetByEventIdAsync(Guid eventId, CancellationToken cancellationToken)
     {
-        const string sql = """
-            select event_id as EventId,
-                   background_asset_id as BackgroundAssetId,
-                   font_key as FontKey,
-                   title_font_size as TitleFontSize,
-                   body_font_size as BodyFontSize,
-                   text_color_hex as TextColorHex,
-                   updated_at as UpdatedAt
-            from print_settings
-            where event_id = @EventId;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        return await connection.QuerySingleOrDefaultAsync<EventPrintSettings>(
-            new CommandDefinition(sql, new { EventId = eventId }, cancellationToken: cancellationToken));
+        return await dbContext.PrintSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(p => p.EventId == eventId, cancellationToken);
     }
 
     public async Task UpsertAsync(EventPrintSettings settings, CancellationToken cancellationToken)
     {
-        const string sql = """
-            insert into print_settings (
-                event_id,
-                background_asset_id,
-                font_key,
-                title_font_size,
-                body_font_size,
-                text_color_hex,
-                updated_at
-            ) values (
-                @EventId,
-                @BackgroundAssetId,
-                @FontKey,
-                @TitleFontSize,
-                @BodyFontSize,
-                @TextColorHex,
-                @UpdatedAt
-            )
-            on conflict (event_id) do update
-            set background_asset_id = excluded.background_asset_id,
-                font_key = excluded.font_key,
-                title_font_size = excluded.title_font_size,
-                body_font_size = excluded.body_font_size,
-                text_color_hex = excluded.text_color_hex,
-                updated_at = excluded.updated_at;
-            """;
+        var existing = await dbContext.PrintSettings
+            .SingleOrDefaultAsync(p => p.EventId == settings.EventId, cancellationToken);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(sql, settings, cancellationToken: cancellationToken));
+        if (existing is null)
+        {
+            dbContext.PrintSettings.Add(settings);
+        }
+        else
+        {
+            dbContext.Entry(existing).CurrentValues.SetValues(settings);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

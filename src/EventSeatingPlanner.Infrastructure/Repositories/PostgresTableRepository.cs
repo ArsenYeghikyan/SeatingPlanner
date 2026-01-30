@@ -1,61 +1,36 @@
-using Dapper;
 using EventSeatingPlanner.Application.Entities;
 using EventSeatingPlanner.Application.Interfaces.Repositories;
-using Npgsql;
+using EventSeatingPlanner.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventSeatingPlanner.Infrastructure.Repositories;
 
-public sealed class PostgresTableRepository(NpgsqlDataSource dataSource) : ITableRepository
+public sealed class PostgresTableRepository(ApplicationDbContext dbContext) : ITableRepository
 {
     public async Task<IReadOnlyList<Table>> ListByEventAsync(Guid eventId, CancellationToken cancellationToken)
     {
-        const string sql = """
-            select id, event_id as EventId, name, capacity, sort_order as SortOrder
-            from tables
-            where event_id = @EventId
-            order by sort_order;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        var tables = await connection.QueryAsync<Table>(
-            new CommandDefinition(sql, new { EventId = eventId }, cancellationToken: cancellationToken));
-
-        return tables.AsList();
+        return await dbContext.Tables
+            .AsNoTracking()
+            .Where(t => t.EventId == eventId)
+            .OrderBy(t => t.SortOrder)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(Table table, CancellationToken cancellationToken)
     {
-        const string sql = """
-            insert into tables (id, event_id, name, capacity, sort_order)
-            values (@Id, @EventId, @Name, @Capacity, @SortOrder);
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(sql, table, cancellationToken: cancellationToken));
+        dbContext.Tables.Add(table);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateAsync(Table table, CancellationToken cancellationToken)
     {
-        const string sql = """
-            update tables
-            set event_id = @EventId,
-                name = @Name,
-                capacity = @Capacity,
-                sort_order = @SortOrder
-            where id = @Id;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(sql, table, cancellationToken: cancellationToken));
+        dbContext.Tables.Update(table);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(Table table, CancellationToken cancellationToken)
     {
-        const string sql = """
-            delete from tables where id = @Id;
-            """;
-
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(sql, new { table.Id }, cancellationToken: cancellationToken));
+        dbContext.Tables.Remove(table);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
