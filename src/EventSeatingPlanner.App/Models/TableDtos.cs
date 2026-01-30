@@ -7,7 +7,16 @@ public sealed record TableDto(
     int Capacity,
     int SortOrder);
 
-public sealed record CreateTableRequest(
-    string Name,
-    int Capacity,
-    int SortOrder);
+public sealed class CreateTableRequest
+{
+    public CreateTableRequest(string name, int capacity, int sortOrder)
+    {
+        Name = name;
+        Capacity = capacity;
+        SortOrder = sortOrder;
+    }
+
+    public string Name { get; set; }
+    public int Capacity { get; set; }
+    public int SortOrder { get; set; }
+}

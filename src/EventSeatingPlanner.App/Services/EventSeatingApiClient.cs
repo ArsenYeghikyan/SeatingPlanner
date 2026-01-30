@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using EventSeatingPlanner.App.Models;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace EventSeatingPlanner.App.Services;
 
@@ -83,6 +84,31 @@ public sealed class EventSeatingApiClient
     public Task<PrintSettingsDto?> GetPrintSettingsAsync(Guid eventId, CancellationToken cancellationToken = default)
     {
         return _httpClient.GetFromJsonAsync<PrintSettingsDto>($"api/events/{eventId}/print-settings", cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AssetDto>> GetAssetsAsync(Guid eventId, CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IReadOnlyList<AssetDto>>($"api/events/{eventId}/assets", cancellationToken)
+            ?? Array.Empty<AssetDto>();
+    }
+
+    public async Task<AssetDto> UploadAssetAsync(
+        Guid eventId,
+        string assetType,
+        IBrowserFile file,
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024, cancellationToken);
+        using var content = new MultipartFormDataContent();
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+        content.Add(fileContent, "file", file.Name);
+
+        var response = await _httpClient.PostAsync($"api/events/{eventId}/assets/{assetType}", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<AssetDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Не удалось загрузить файл.");
     }
 
     public async Task<PrintSettingsDto> UpdatePrintSettingsAsync(

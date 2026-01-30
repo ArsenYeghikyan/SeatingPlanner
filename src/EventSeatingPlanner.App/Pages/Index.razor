@@ -97,7 +97,35 @@
                 <span class="badge success">PDF готов к печати</span>
             </div>
 
+            <div class="form" style="margin-bottom: 12px;">
+                <div class="form__row">
+                    <label>Фоновое изображение</label>
+                    <InputFile OnChange="UploadBackgroundAsync" />
+                    @if (_isUploadingAsset)
+                    {
+                        <span class="muted">Загрузка...</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_assetStatus))
+                    {
+                        <span class="@(_assetStatusIsError ? "warning" : "success")">@_assetStatus</span>
+                    }
+                </div>
+            </div>
+
             <EditForm Model="_printSettings" OnValidSubmit="UpdatePrintSettingsAsync" class="form">
+                <div class="form__row">
+                    <label>Выберите фон</label>
+                    <InputSelect @bind-Value="_printSettings.BackgroundAssetId">
+                        <option value="">Без фона</option>
+                        @if (_assets is not null)
+                        {
+                            @foreach (var asset in _assets.Where(a => a.Type == "background"))
+                            {
+                                <option value="@asset.Id">@asset.FileName</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
                 <div class="form__row">
                     <label>Шрифт</label>
                     <InputText @bind-Value="_printSettings.FontKey" />
@@ -318,6 +346,7 @@
     private IReadOnlyList<TableDto>? _tables;
     private IReadOnlyList<GuestDto>? _guests;
     private IReadOnlyList<AssignmentDto>? _assignments;
+    private IReadOnlyList<AssetDto>? _assets;
     private string? _error;
     private bool _isLoadingEvents = true;
     private bool _isLoadingSettings;
@@ -325,8 +354,11 @@
     private bool _isSavingGuest;
     private bool _isSavingAssignment;
     private bool _isSavingSettings;
+    private bool _isUploadingAsset;
     private string? _settingsStatus;
     private bool _settingsStatusIsError;
+    private string? _assetStatus;
+    private bool _assetStatusIsError;
 
     private CreateEventRequest _newEvent = new("", DateOnly.FromDateTime(DateTime.Today), null, null);
     private CreateTableRequest _newTable = new("", 8, 1);
@@ -384,6 +416,7 @@
         _tables = await Api.GetTablesAsync(eventId);
         _guests = await Api.GetGuestsAsync(eventId);
         _assignments = await Api.GetAssignmentsAsync(eventId);
+        _assets = await Api.GetAssetsAsync(eventId);
         await LoadPrintSettingsAsync();
     }
 
@@ -418,6 +451,34 @@
         finally
         {
             _isLoadingSettings = false;
+        }
+    }
+
+    private async Task UploadBackgroundAsync(InputFileChangeEventArgs args)
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _assetStatus = null;
+        _assetStatusIsError = false;
+        _isUploadingAsset = true;
+        try
+        {
+            var file = args.File;
+            await Api.UploadAssetAsync(_selectedEvent.Id, "background", file);
+            _assets = await Api.GetAssetsAsync(_selectedEvent.Id);
+            _assetStatus = "Фон загружен.";
+        }
+        catch (Exception ex)
+        {
+            _assetStatus = $"Ошибка загрузки: {ex.Message}";
+            _assetStatusIsError = true;
+        }
+        finally
+        {
+            _isUploadingAsset = false;
         }
     }
 
