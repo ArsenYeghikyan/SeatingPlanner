@@ -1,13 +1,17 @@
 using System.Text;
 using EventSeatingPlanner.Api.Authentication;
 using EventSeatingPlanner.Application.Entities;
+using EventSeatingPlanner.Application.Interfaces.Services;
+using EventSeatingPlanner.Application.Services;
 using EventSeatingPlanner.Infrastructure;
 using EventSeatingPlanner.Infrastructure.Persistence;
+using EventSeatingPlanner.Infrastructure.Services;
 using EventSeatingPlanner.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF;
 using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -54,20 +58,20 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Application services
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IEventService, EventSeatingPlanner.Application.Services.EventService>();
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.ITableService, EventSeatingPlanner.Application.Services.TableService>();
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IGuestService, EventSeatingPlanner.Application.Services.GuestService>();
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IAssignmentService, EventSeatingPlanner.Application.Services.AssignmentService>();
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IPrintSettingsService, EventSeatingPlanner.Application.Services.PrintSettingsService>();
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IAssetService, EventSeatingPlanner.Application.Services.AssetService>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<ITableService, TableService>();
+builder.Services.AddScoped<IGuestService, GuestService>();
+builder.Services.AddScoped<IAssignmentService, AssignmentService>();
+builder.Services.AddScoped<IPrintSettingsService, PrintSettingsService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 // PDF export (implementation in Infrastructure)
-builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IPdfExportService, EventSeatingPlanner.Infrastructure.Services.PdfExportService>();
+builder.Services.AddScoped<IPdfExportService, PdfExportService>();
 
 // Storage (for MVP is ok, can be swapped for cloud later)
-builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssetStorage>(sp =>
+builder.Services.AddSingleton<IAssetStorage>(sp =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
     var rootPath = configuration.GetValue<string>("AssetStorage:RootPath") ?? "App_Data/assets";

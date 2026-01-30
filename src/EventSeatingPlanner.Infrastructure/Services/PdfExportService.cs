@@ -69,8 +69,11 @@ public sealed class PdfExportService : IPdfExportService
 
                 if (backgroundImage is not null)
                 {
-                    page.Background().Image(backgroundImage, ImageScaling.Stretch);
+                    page.Background()
+                        .Image(backgroundImage)
+                        .FitArea();
                 }
+
 
                 page.Content().Column(column =>
                 {
@@ -79,10 +82,10 @@ public sealed class PdfExportService : IPdfExportService
                     column.Item().Text($"Мероприятие: {@event.Title}").FontSize(titleFontSize).SemiBold().FontColor(textColor);
                     column.Item().Text($"Дата: {@event.Date:dd.MM.yyyy}").FontSize(bodyFontSize).FontColor(textColor);
                     column.Item().Text($"Локация: {@event.Location ?? "—"}").FontSize(bodyFontSize).FontColor(textColor);
-                    column.Item().Text($"Шрифт: {printSettings?.FontKey ?? "Default"}").FontSize(bodyFontSize).FontColor(textColor);
-                    column.Item().Text($"Размер заголовка: {titleFontSize}").FontSize(bodyFontSize).FontColor(textColor);
-                    column.Item().Text($"Размер текста: {bodyFontSize}").FontSize(bodyFontSize).FontColor(textColor);
-                    column.Item().Text($"Цвет текста: {printSettings?.TextColorHex ?? "#000000"}").FontSize(bodyFontSize).FontColor(textColor);
+                    //column.Item().Text($"Шрифт: {printSettings?.FontKey ?? "Default"}").FontSize(bodyFontSize).FontColor(textColor);
+                    //column.Item().Text($"Размер заголовка: {titleFontSize}").FontSize(bodyFontSize).FontColor(textColor);
+                    //column.Item().Text($"Размер текста: {bodyFontSize}").FontSize(bodyFontSize).FontColor(textColor);
+                    //column.Item().Text($"Цвет текста: {printSettings?.TextColorHex ?? "#000000"}").FontSize(bodyFontSize).FontColor(textColor);
 
                     column.Item().PaddingTop(8).Text("Рассадка:").FontSize(titleFontSize).SemiBold().FontColor(textColor);
 
