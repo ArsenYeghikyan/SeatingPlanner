@@ -112,6 +112,31 @@
                 </div>
             </div>
 
+            @if (_assets is not null && _assets.Count > 0)
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Файл</th>
+                            <th>Тип</th>
+                            <th>Размер</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var asset in _assets)
+                        {
+                            <tr>
+                                <td>@asset.FileName</td>
+                                <td>@asset.Type</td>
+                                <td>@FormatBytes(asset.SizeBytes)</td>
+                                <td><a class="button ghost" href="api/assets/@asset.Id" target="_blank">Скачать</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
             <EditForm Model="_printSettings" OnValidSubmit="UpdatePrintSettingsAsync" class="form">
                 <div class="form__row">
                     <label>Выберите фон</label>
@@ -599,5 +624,19 @@
         {
             _isSavingSettings = false;
         }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] suffixes = ["B", "KB", "MB", "GB"];
+        var size = (double)bytes;
+        var index = 0;
+        while (size >= 1024 && index < suffixes.Length - 1)
+        {
+            size /= 1024;
+            index++;
+        }
+
+        return $"{size:0.##} {suffixes[index]}";
     }
 }
