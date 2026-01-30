@@ -110,6 +110,18 @@
                         <span class="@(_assetStatusIsError ? "warning" : "success")">@_assetStatus</span>
                     }
                 </div>
+                <div class="form__row">
+                    <label>Файл шрифта</label>
+                    <InputFile OnChange="UploadFontAsync" />
+                    @if (_isUploadingFont)
+                    {
+                        <span class="muted">Загрузка...</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_fontStatus))
+                    {
+                        <span class="@(_fontStatusIsError ? "warning" : "success")">@_fontStatus</span>
+                    }
+                </div>
             </div>
 
             @if (_assets is not null && _assets.Count > 0)
@@ -153,7 +165,16 @@
                 </div>
                 <div class="form__row">
                     <label>Шрифт</label>
-                    <InputText @bind-Value="_printSettings.FontKey" />
+                    <InputSelect @bind-Value="_printSettings.FontKey">
+                        <option value="Default">Default</option>
+                        @if (_assets is not null)
+                        {
+                            @foreach (var asset in _assets.Where(a => a.Type == "font"))
+                            {
+                                <option value="@asset.FileName">@asset.FileName</option>
+                            }
+                        }
+                    </InputSelect>
                 </div>
                 <div class="form__row">
                     <label>Размер заголовка</label>
@@ -380,10 +401,13 @@
     private bool _isSavingAssignment;
     private bool _isSavingSettings;
     private bool _isUploadingAsset;
+    private bool _isUploadingFont;
     private string? _settingsStatus;
     private bool _settingsStatusIsError;
     private string? _assetStatus;
     private bool _assetStatusIsError;
+    private string? _fontStatus;
+    private bool _fontStatusIsError;
 
     private CreateEventRequest _newEvent = new("", DateOnly.FromDateTime(DateTime.Today), null, null);
     private CreateTableRequest _newTable = new("", 8, 1);
@@ -504,6 +528,34 @@
         finally
         {
             _isUploadingAsset = false;
+        }
+    }
+
+    private async Task UploadFontAsync(InputFileChangeEventArgs args)
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _fontStatus = null;
+        _fontStatusIsError = false;
+        _isUploadingFont = true;
+        try
+        {
+            var file = args.File;
+            await Api.UploadAssetAsync(_selectedEvent.Id, "font", file);
+            _assets = await Api.GetAssetsAsync(_selectedEvent.Id);
+            _fontStatus = "Шрифт загружен.";
+        }
+        catch (Exception ex)
+        {
+            _fontStatus = $"Ошибка загрузки: {ex.Message}";
+            _fontStatusIsError = true;
+        }
+        finally
+        {
+            _isUploadingFont = false;
         }
     }
 
