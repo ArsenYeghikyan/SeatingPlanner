@@ -75,3 +75,10 @@ EventSeatingPlanner.sln
 
 - .NET 8 SDK.
 - PostgreSQL (для слоя Infrastructure).
+
+## Следующие шаги
+
+- Реализовать доменную модель и бизнес-правила в слое Application.
+- Подключить EF Core и миграции в слое Infrastructure.
+- Настроить API-контроллеры и аутентификацию.
+- Построить интерфейс PWA в слое App.
