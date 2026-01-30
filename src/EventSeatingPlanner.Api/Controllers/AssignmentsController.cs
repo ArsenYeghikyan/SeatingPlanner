@@ -28,7 +28,14 @@ public sealed class AssignmentsController : ControllerBase
         [FromBody] CreateAssignmentRequest request,
         CancellationToken cancellationToken)
     {
-        var created = await _assignmentService.CreateAsync(eventId, request, cancellationToken);
-        return CreatedAtAction(nameof(List), new { eventId }, created);
+        try
+        {
+            var created = await _assignmentService.CreateAsync(eventId, request, cancellationToken);
+            return CreatedAtAction(nameof(List), new { eventId }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }
