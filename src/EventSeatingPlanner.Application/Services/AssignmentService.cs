@@ -86,4 +86,16 @@ public sealed class AssignmentService(
             assignment.GuestId,
             assignment.SeatNumber);
     }
+
+    public async Task DeleteAsync(Guid eventId, Guid assignmentId, CancellationToken cancellationToken)
+    {
+        var assignments = await assignmentRepository.ListByEventAsync(eventId, cancellationToken);
+        var assignment = assignments.FirstOrDefault(item => item.Id == assignmentId);
+        if (assignment is null)
+        {
+            throw new InvalidOperationException("Рассадка не найдена.");
+        }
+
+        await assignmentRepository.DeleteAsync(assignment, cancellationToken);
+    }
 }

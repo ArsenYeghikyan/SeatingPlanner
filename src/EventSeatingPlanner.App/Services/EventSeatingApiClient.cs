@@ -81,6 +81,12 @@ public sealed class EventSeatingApiClient
             ?? throw new InvalidOperationException("Не удалось назначить гостя.");
     }
 
+    public async Task DeleteAssignmentAsync(Guid eventId, Guid assignmentId, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/events/{eventId}/assignments/{assignmentId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public Task<PrintSettingsDto?> GetPrintSettingsAsync(Guid eventId, CancellationToken cancellationToken = default)
     {
         return _httpClient.GetFromJsonAsync<PrintSettingsDto>($"api/events/{eventId}/print-settings", cancellationToken);

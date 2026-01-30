@@ -38,4 +38,18 @@ public sealed class AssignmentsController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    [HttpDelete("{assignmentId:guid}")]
+    public async Task<IActionResult> Delete(Guid eventId, Guid assignmentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _assignmentService.DeleteAsync(eventId, assignmentId, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
 }

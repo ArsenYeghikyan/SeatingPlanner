@@ -363,6 +363,7 @@
                         <th>Стол</th>
                         <th>Гость</th>
                         <th>Место</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -374,6 +375,11 @@
                             <td>@(table?.Name ?? "—")</td>
                             <td>@(guest?.FullName ?? "—")</td>
                             <td>@(assignment.SeatNumber?.ToString() ?? "—")</td>
+                            <td>
+                                <button class="button ghost" @onclick="() => DeleteAssignmentAsync(assignment.Id)" disabled="@IsDeletingAssignment(assignment.Id)">
+                                    Удалить
+                                </button>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -402,6 +408,7 @@
     private bool _isSavingSettings;
     private bool _isUploadingAsset;
     private bool _isUploadingFont;
+    private Guid? _deletingAssignmentId;
     private string? _settingsStatus;
     private bool _settingsStatusIsError;
     private string? _assetStatus;
@@ -677,6 +684,31 @@
             _isSavingSettings = false;
         }
     }
+
+    private async Task DeleteAssignmentAsync(Guid assignmentId)
+    {
+        if (_selectedEvent is null)
+        {
+            return;
+        }
+
+        _deletingAssignmentId = assignmentId;
+        try
+        {
+            await Api.DeleteAssignmentAsync(_selectedEvent.Id, assignmentId);
+            _assignments = await Api.GetAssignmentsAsync(_selectedEvent.Id);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Не удалось удалить рассадку: {ex.Message}";
+        }
+        finally
+        {
+            _deletingAssignmentId = null;
+        }
+    }
+
+    private bool IsDeletingAssignment(Guid assignmentId) => _deletingAssignmentId == assignmentId;
 
     private static string FormatBytes(long bytes)
     {
