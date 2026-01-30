@@ -3,12 +3,16 @@ using EventSeatingPlanner.Api.Authentication;
 using EventSeatingPlanner.Application.Entities;
 using EventSeatingPlanner.Infrastructure;
 using EventSeatingPlanner.Infrastructure.Persistence;
+using EventSeatingPlanner.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Settings.License = LicenseType.Community;
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -63,7 +67,14 @@ builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<EventSeatingPlanner.Application.Interfaces.Services.IPdfExportService, EventSeatingPlanner.Infrastructure.Services.PdfExportService>();
 
 // Storage (for MVP is ok, can be swapped for cloud later)
-builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssetStorage, EventSeatingPlanner.Infrastructure.Storage.InMemoryAssetStorage>();
+builder.Services.AddSingleton<EventSeatingPlanner.Application.Interfaces.Services.IAssetStorage>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var rootPath = configuration.GetValue<string>("AssetStorage:RootPath") ?? "App_Data/assets";
+    var contentRoot = builder.Environment.ContentRootPath;
+    var fullPath = Path.IsPathRooted(rootPath) ? rootPath : Path.Combine(contentRoot, rootPath);
+    return new FileSystemAssetStorage(fullPath);
+});
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();

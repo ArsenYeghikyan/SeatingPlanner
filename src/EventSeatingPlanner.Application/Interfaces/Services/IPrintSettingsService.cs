@@ -7,4 +7,5 @@ public interface IPrintSettingsService
 {
     Task<PrintSettingsDto> GetAsync(Guid eventId, CancellationToken cancellationToken);
     Task<PrintSettingsDto> UpdateAsync(Guid eventId, UpdatePrintSettingsRequest request, CancellationToken cancellationToken);
+    Task<PrintSettingsDto> UpdateBackgroundAsync(Guid eventId, Guid backgroundAssetId, CancellationToken cancellationToken);
 }
