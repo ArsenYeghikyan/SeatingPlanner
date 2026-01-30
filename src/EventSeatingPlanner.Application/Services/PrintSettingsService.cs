@@ -56,4 +56,34 @@ public sealed class PrintSettingsService(IPrintSettingsRepository printSettingsR
             settings.BodyFontSize,
             settings.TextColorHex);
     }
+
+    public async Task<PrintSettingsDto> UpdateBackgroundAsync(
+        Guid eventId,
+        Guid backgroundAssetId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await printSettingsRepository.GetByEventIdAsync(eventId, cancellationToken);
+        var settings = existing ?? new EventPrintSettings
+        {
+            EventId = eventId,
+            FontKey = "Default",
+            TitleFontSize = 24,
+            BodyFontSize = 12,
+            TextColorHex = "#000000",
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        settings.BackgroundAssetId = backgroundAssetId;
+        settings.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await printSettingsRepository.UpsertAsync(settings, cancellationToken);
+
+        return new PrintSettingsDto(
+            settings.EventId,
+            settings.BackgroundAssetId,
+            settings.FontKey,
+            settings.TitleFontSize,
+            settings.BodyFontSize,
+            settings.TextColorHex);
+    }
 }

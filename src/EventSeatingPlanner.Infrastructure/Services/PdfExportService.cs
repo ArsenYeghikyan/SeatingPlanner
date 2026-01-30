@@ -1,6 +1,8 @@
-using System.Text;
 using EventSeatingPlanner.Application.Interfaces.Repositories;
 using EventSeatingPlanner.Application.Interfaces.Services;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace EventSeatingPlanner.Infrastructure.Services;
 
@@ -12,6 +14,7 @@ public sealed class PdfExportService : IPdfExportService
     private readonly IAssignmentRepository _assignmentRepository;
     private readonly IPrintSettingsRepository _printSettingsRepository;
     private readonly IAssetRepository _assetRepository;
+    private readonly IAssetStorage _assetStorage;
 
     public PdfExportService(
         IEventRepository eventRepository,
@@ -19,7 +22,8 @@ public sealed class PdfExportService : IPdfExportService
         IGuestRepository guestRepository,
         IAssignmentRepository assignmentRepository,
         IPrintSettingsRepository printSettingsRepository,
-        IAssetRepository assetRepository)
+        IAssetRepository assetRepository,
+        IAssetStorage assetStorage)
     {
         _eventRepository = eventRepository;
         _tableRepository = tableRepository;
@@ -27,6 +31,7 @@ public sealed class PdfExportService : IPdfExportService
         _assignmentRepository = assignmentRepository;
         _printSettingsRepository = printSettingsRepository;
         _assetRepository = assetRepository;
+        _assetStorage = assetStorage;
     }
 
     public async Task<byte[]> ExportSeatingPlanAsync(Guid eventId, CancellationToken cancellationToken)
@@ -34,7 +39,15 @@ public sealed class PdfExportService : IPdfExportService
         var @event = await _eventRepository.GetByIdAsync(eventId, cancellationToken);
         if (@event is null)
         {
-            return BuildPdf(new[] { "Мероприятие не найдено." });
+            return BuildPdf(document =>
+            {
+                document.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(32);
+                    page.Content().Text("Мероприятие не найдено.").FontSize(14);
+                });
+            });
         }
 
         var tables = await _tableRepository.ListByEventAsync(eventId, cancellationToken);
@@ -42,126 +55,119 @@ public sealed class PdfExportService : IPdfExportService
         var assignments = await _assignmentRepository.ListByEventAsync(eventId, cancellationToken);
 
         var printSettings = await _printSettingsRepository.GetByEventIdAsync(eventId, cancellationToken);
-        var backgroundName = "—";
-        if (printSettings?.BackgroundAssetId is not null)
-        {
-            var asset = await _assetRepository.GetByIdAsync(printSettings.BackgroundAssetId.Value, cancellationToken);
-            backgroundName = asset?.FileName ?? backgroundName;
-        }
+        var backgroundImage = await ResolveBackgroundAsync(printSettings?.BackgroundAssetId, cancellationToken);
+        var titleFontSize = printSettings?.TitleFontSize ?? 24;
+        var bodyFontSize = printSettings?.BodyFontSize ?? 12;
+        var textColor = ResolveTextColor(printSettings?.TextColorHex);
 
-        var lines = new List<string>
+        return BuildPdf(document =>
         {
-            $"Мероприятие: {@event.Title}",
-            $"Дата: {@event.Date:dd.MM.yyyy}",
-            $"Локация: {@event.Location ?? "—"}",
-            $"Шрифт: {printSettings?.FontKey ?? "Default"}",
-            $"Размер заголовка: {printSettings?.TitleFontSize ?? 24}",
-            $"Размер текста: {printSettings?.BodyFontSize ?? 12}",
-            $"Цвет текста: {printSettings?.TextColorHex ?? "#000000"}",
-            $"Фон: {backgroundName}",
-            string.Empty,
-            "Рассадка:"
-        };
-
-        foreach (var table in tables.OrderBy(t => t.SortOrder))
-        {
-            lines.Add($"Стол: {table.Name} (мест: {table.Capacity})");
-            var tableAssignments = assignments
-                .Where(a => a.TableId == table.Id)
-                .OrderBy(a => a.SeatNumber ?? int.MaxValue)
-                .ToList();
-
-            if (tableAssignments.Count == 0)
+            document.Page(page =>
             {
-                lines.Add("  — Нет гостей");
-                continue;
-            }
+                page.Size(PageSizes.A4);
+                page.Margin(32);
 
-            foreach (var assignment in tableAssignments)
-            {
-                var guest = guests.FirstOrDefault(g => g.Id == assignment.GuestId);
-                var seatLabel = assignment.SeatNumber is null ? string.Empty : $" (место {assignment.SeatNumber})";
-                lines.Add($"  • {guest?.FullName ?? "Неизвестный гость"}{seatLabel}");
-            }
-        }
+                if (backgroundImage is not null)
+                {
+                    page.Background().Image(backgroundImage, ImageScaling.Stretch);
+                }
 
-        return BuildPdf(lines);
+                page.Content().Column(column =>
+                {
+                    column.Spacing(6);
+
+                    column.Item().Text($"Мероприятие: {@event.Title}").FontSize(titleFontSize).SemiBold().FontColor(textColor);
+                    column.Item().Text($"Дата: {@event.Date:dd.MM.yyyy}").FontSize(bodyFontSize).FontColor(textColor);
+                    column.Item().Text($"Локация: {@event.Location ?? "—"}").FontSize(bodyFontSize).FontColor(textColor);
+                    column.Item().Text($"Шрифт: {printSettings?.FontKey ?? "Default"}").FontSize(bodyFontSize).FontColor(textColor);
+                    column.Item().Text($"Размер заголовка: {titleFontSize}").FontSize(bodyFontSize).FontColor(textColor);
+                    column.Item().Text($"Размер текста: {bodyFontSize}").FontSize(bodyFontSize).FontColor(textColor);
+                    column.Item().Text($"Цвет текста: {printSettings?.TextColorHex ?? "#000000"}").FontSize(bodyFontSize).FontColor(textColor);
+
+                    column.Item().PaddingTop(8).Text("Рассадка:").FontSize(titleFontSize).SemiBold().FontColor(textColor);
+
+                    foreach (var table in tables.OrderBy(t => t.SortOrder))
+                    {
+                        column.Item().Text($"Стол: {table.Name} (мест: {table.Capacity})")
+                            .FontSize(bodyFontSize + 2)
+                            .SemiBold()
+                            .FontColor(textColor);
+
+                        var tableAssignments = assignments
+                            .Where(a => a.TableId == table.Id)
+                            .OrderBy(a => a.SeatNumber ?? int.MaxValue)
+                            .ToList();
+
+                        if (tableAssignments.Count == 0)
+                        {
+                            column.Item().PaddingLeft(12).Text("— Нет гостей").FontSize(bodyFontSize).FontColor(textColor);
+                            continue;
+                        }
+
+                        foreach (var assignment in tableAssignments)
+                        {
+                            var guest = guests.FirstOrDefault(g => g.Id == assignment.GuestId);
+                            var seatLabel = assignment.SeatNumber is null ? string.Empty : $" (место {assignment.SeatNumber})";
+                            column.Item().PaddingLeft(12)
+                                .Text($"• {guest?.FullName ?? "Неизвестный гость"}{seatLabel}")
+                                .FontSize(bodyFontSize)
+                                .FontColor(textColor);
+                        }
+                    }
+                });
+            });
+        });
     }
 
-    private static byte[] BuildPdf(IEnumerable<string> lines)
+    private async Task<byte[]?> ResolveBackgroundAsync(Guid? backgroundAssetId, CancellationToken cancellationToken)
     {
-        var contentStream = BuildContentStream(lines);
-        var objects = new List<string>
+        if (backgroundAssetId is null)
         {
-            "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-            $"<< /Length {contentStream.Length} >>\nstream\n{contentStream}\nendstream",
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-        };
-
-        using var stream = new MemoryStream();
-        using var writer = new StreamWriter(stream, Encoding.ASCII, leaveOpen: true);
-
-        writer.WriteLine("%PDF-1.4");
-
-        var offsets = new List<long> { 0 };
-        for (var i = 0; i < objects.Count; i++)
-        {
-            offsets.Add(stream.Position);
-            var objectId = i + 1;
-            writer.WriteLine($"{objectId} 0 obj");
-            writer.WriteLine(objects[i]);
-            writer.WriteLine("endobj");
+            return null;
         }
 
-        writer.Flush();
-        var xrefPosition = stream.Position;
-        writer.WriteLine("xref");
-        writer.WriteLine($"0 {offsets.Count}");
-        writer.WriteLine("0000000000 65535 f ");
-
-        for (var i = 1; i < offsets.Count; i++)
+        var asset = await _assetRepository.GetByIdAsync(backgroundAssetId.Value, cancellationToken);
+        if (asset is null || !asset.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
         {
-            writer.WriteLine($"{offsets[i]:0000000000} 00000 n ");
+            return null;
         }
 
-        writer.WriteLine("trailer");
-        writer.WriteLine("<< /Size 6 /Root 1 0 R >>");
-        writer.WriteLine("startxref");
-        writer.WriteLine(xrefPosition);
-        writer.WriteLine("%%EOF");
-        writer.Flush();
-
-        return stream.ToArray();
+        var content = await _assetStorage.GetAsync(asset.StoragePath, cancellationToken);
+        return content?.Content;
     }
 
-    private static string BuildContentStream(IEnumerable<string> lines)
+    private static Color ResolveTextColor(string? hexValue)
     {
-        var builder = new StringBuilder();
-        builder.AppendLine("BT");
-        builder.AppendLine("/F1 12 Tf");
-        builder.AppendLine("14 TL");
-        builder.AppendLine("50 750 Td");
-
-        var lineList = lines.ToList();
-        for (var i = 0; i < lineList.Count; i++)
+        if (string.IsNullOrWhiteSpace(hexValue))
         {
-            builder.AppendLine($"({Escape(lineList[i])}) Tj");
-            if (i != lineList.Count - 1)
+            return Colors.Black;
+        }
+
+        var normalized = hexValue.Trim();
+        if (!normalized.StartsWith("#", StringComparison.Ordinal))
+        {
+            normalized = $"#{normalized}";
+        }
+
+        if (normalized.Length != 7 || normalized[0] != '#')
+        {
+            return Colors.Black;
+        }
+
+        for (var i = 1; i < normalized.Length; i++)
+        {
+            if (!Uri.IsHexDigit(normalized[i]))
             {
-                builder.AppendLine("T*");
+                return Colors.Black;
             }
         }
 
-        builder.AppendLine("ET");
-        return builder.ToString();
+        return Color.FromHex(normalized);
     }
 
-    private static string Escape(string value)
+    private static byte[] BuildPdf(Action<IDocumentContainer> build)
     {
-        return value.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("(", "\\(", StringComparison.Ordinal)
-            .Replace(")", "\\)", StringComparison.Ordinal);
+        var document = Document.Create(build);
+        return document.GeneratePdf();
     }
 }

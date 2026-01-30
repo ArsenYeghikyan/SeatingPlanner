@@ -12,11 +12,16 @@ public sealed class AssetsController : ControllerBase
 {
     private readonly IAssetService _assetService;
     private readonly IAssetStorage _assetStorage;
+    private readonly IPrintSettingsService _printSettingsService;
 
-    public AssetsController(IAssetService assetService, IAssetStorage assetStorage)
+    public AssetsController(
+        IAssetService assetService,
+        IAssetStorage assetStorage,
+        IPrintSettingsService printSettingsService)
     {
         _assetService = assetService;
         _assetStorage = assetStorage;
+        _printSettingsService = printSettingsService;
     }
 
     [HttpGet("api/events/{eventId:guid}/assets")]
@@ -50,6 +55,11 @@ public sealed class AssetsController : ControllerBase
             storageResult.SizeBytes,
             cancellationToken);
 
+        if (assetType.Equals("background", StringComparison.OrdinalIgnoreCase))
+        {
+            await _printSettingsService.UpdateBackgroundAsync(eventId, asset.Id, cancellationToken);
+        }
+
         return CreatedAtAction(nameof(Download), new { assetId = asset.Id }, asset);
     }
 
@@ -68,6 +78,6 @@ public sealed class AssetsController : ControllerBase
             return NotFound();
         }
 
-        return File(content.Content, content.ContentType, asset.FileName);
+        return File(content.Content, asset.ContentType, asset.FileName);
     }
 }
