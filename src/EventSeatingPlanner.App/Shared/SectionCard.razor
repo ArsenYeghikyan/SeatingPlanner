@@ -1,0 +1,23 @@
+<section class="card">
+    <div class="card__header">
+        <h2>@Title</h2>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <p class="muted">@Subtitle</p>
+        }
+    </div>
+    <div class="card__body">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
