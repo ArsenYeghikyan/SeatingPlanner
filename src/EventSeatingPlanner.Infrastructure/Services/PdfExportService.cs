@@ -10,17 +10,23 @@ public sealed class PdfExportService : IPdfExportService
     private readonly ITableRepository _tableRepository;
     private readonly IGuestRepository _guestRepository;
     private readonly IAssignmentRepository _assignmentRepository;
+    private readonly IPrintSettingsRepository _printSettingsRepository;
+    private readonly IAssetRepository _assetRepository;
 
     public PdfExportService(
         IEventRepository eventRepository,
         ITableRepository tableRepository,
         IGuestRepository guestRepository,
-        IAssignmentRepository assignmentRepository)
+        IAssignmentRepository assignmentRepository,
+        IPrintSettingsRepository printSettingsRepository,
+        IAssetRepository assetRepository)
     {
         _eventRepository = eventRepository;
         _tableRepository = tableRepository;
         _guestRepository = guestRepository;
         _assignmentRepository = assignmentRepository;
+        _printSettingsRepository = printSettingsRepository;
+        _assetRepository = assetRepository;
     }
 
     public async Task<byte[]> ExportSeatingPlanAsync(Guid eventId, CancellationToken cancellationToken)
@@ -35,11 +41,24 @@ public sealed class PdfExportService : IPdfExportService
         var guests = await _guestRepository.ListByEventAsync(eventId, cancellationToken);
         var assignments = await _assignmentRepository.ListByEventAsync(eventId, cancellationToken);
 
+        var printSettings = await _printSettingsRepository.GetByEventIdAsync(eventId, cancellationToken);
+        var backgroundName = "—";
+        if (printSettings?.BackgroundAssetId is not null)
+        {
+            var asset = await _assetRepository.GetByIdAsync(printSettings.BackgroundAssetId.Value, cancellationToken);
+            backgroundName = asset?.FileName ?? backgroundName;
+        }
+
         var lines = new List<string>
         {
             $"Мероприятие: {@event.Title}",
             $"Дата: {@event.Date:dd.MM.yyyy}",
             $"Локация: {@event.Location ?? "—"}",
+            $"Шрифт: {printSettings?.FontKey ?? "Default"}",
+            $"Размер заголовка: {printSettings?.TitleFontSize ?? 24}",
+            $"Размер текста: {printSettings?.BodyFontSize ?? 12}",
+            $"Цвет текста: {printSettings?.TextColorHex ?? "#000000"}",
+            $"Фон: {backgroundName}",
             string.Empty,
             "Рассадка:"
         };
