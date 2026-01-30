@@ -5,23 +5,33 @@ using EventSeatingPlanner.Application.Interfaces.Services;
 
 namespace EventSeatingPlanner.Application.Services;
 
-public sealed class EventService(IEventRepository eventRepository) : IEventService
+public sealed class EventService(
+    IEventRepository eventRepository,
+    ITableRepository tableRepository,
+    IGuestRepository guestRepository) : IEventService
 {
     public async Task<IReadOnlyList<EventSummaryDto>> ListAsync(
         Guid ownerUserId,
         CancellationToken cancellationToken)
     {
         var events = await eventRepository.ListAsync(ownerUserId, cancellationToken);
+        var summaries = new List<EventSummaryDto>();
 
-        return events
-            .Select(@event => new EventSummaryDto(
+        foreach (var @event in events)
+        {
+            var tables = await tableRepository.ListByEventAsync(@event.Id, cancellationToken);
+            var guests = await guestRepository.ListByEventAsync(@event.Id, cancellationToken);
+
+            summaries.Add(new EventSummaryDto(
                 @event.Id,
                 @event.Title,
                 @event.Date,
                 @event.Location,
-                0,
-                0))
-            .ToList();
+                tables.Count,
+                guests.Count));
+        }
+
+        return summaries;
     }
 
     public async Task<EventDetailDto?> GetAsync(
