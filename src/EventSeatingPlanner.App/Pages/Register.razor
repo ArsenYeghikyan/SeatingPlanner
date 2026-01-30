@@ -1,23 +1,35 @@
 @page "/register"
+
 @using EventSeatingPlanner.App.Models
+@using Microsoft.AspNetCore.Components.Forms
+
 @inject EventSeatingPlanner.App.Services.AuthService AuthService
-@inject NavigationManager NavigationManager
+@inject NavigationManager Nav
 
 <SectionCard Title="Регистрация" Subtitle="Создайте аккаунт для работы с событиями">
-    <EditForm Model="_model" OnValidSubmit="HandleRegisterAsync" class="form">
+    <EditForm Model="_form" OnValidSubmit="HandleRegisterAsync" class="form">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
         <div class="form__row">
             <label>Email</label>
-            <InputText @bind-Value="_model.Email" />
+            <InputText @bind-Value="_form.Email" type="email" class="input" />
         </div>
+
         <div class="form__row">
             <label>Пароль</label>
-            <InputText @bind-Value="_model.Password" type="password" />
+            <InputText @bind-Value="_form.Password" type="password" class="input" />
         </div>
+
         <div class="form__row">
             <label>Повторите пароль</label>
-            <InputText @bind-Value="_confirmPassword" type="password" />
+            <InputText @bind-Value="_form.ConfirmPassword" type="password" class="input" />
         </div>
-        <button class="button" type="submit" disabled="@_isBusy">Создать аккаунт</button>
+
+        <button class="button" type="submit" disabled="@_isBusy">
+            @(_isBusy ? "Создание..." : "Создать аккаунт")
+        </button>
+
         @if (!string.IsNullOrWhiteSpace(_error))
         {
             <div class="alert">@_error</div>
@@ -26,15 +38,17 @@
 </SectionCard>
 
 @code {
-    private RegisterRequest _model = new(string.Empty, string.Empty);
-    private string _confirmPassword = string.Empty;
+    private readonly RegisterFormModel _form = new();
     private string? _error;
     private bool _isBusy;
 
     private async Task HandleRegisterAsync()
     {
+        if (_isBusy) return;
+
         _error = null;
-        if (_model.Password != _confirmPassword)
+
+        if (!string.Equals(_form.Password, _form.ConfirmPassword, StringComparison.Ordinal))
         {
             _error = "Пароли не совпадают.";
             return;
@@ -43,8 +57,9 @@
         _isBusy = true;
         try
         {
-            await AuthService.RegisterAsync(_model);
-            NavigationManager.NavigateTo("/");
+            var request = new RegisterRequest(_form.Email, _form.Password);
+            await AuthService.RegisterAsync(request);
+            Nav.NavigateTo("/");
         }
         catch (Exception ex)
         {

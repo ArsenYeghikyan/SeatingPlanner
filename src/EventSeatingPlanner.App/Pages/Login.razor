@@ -1,19 +1,30 @@
 @page "/login"
+
 @using EventSeatingPlanner.App.Models
+@using Microsoft.AspNetCore.Components.Forms
+
 @inject EventSeatingPlanner.App.Services.AuthService AuthService
-@inject NavigationManager NavigationManager
+@inject NavigationManager Nav
 
 <SectionCard Title="Вход" Subtitle="Используйте email и пароль для доступа">
-    <EditForm Model="_model" OnValidSubmit="HandleLoginAsync" class="form">
+    <EditForm Model="_form" OnValidSubmit="HandleLoginAsync" class="form">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
         <div class="form__row">
             <label>Email</label>
-            <InputText @bind-Value="_model.Email" />
+            <InputText @bind-Value="_form.Email" type="email" class="input" />
         </div>
+
         <div class="form__row">
             <label>Пароль</label>
-            <InputText @bind-Value="_model.Password" type="password" />
+            <InputText @bind-Value="_form.Password" type="password" class="input" />
         </div>
-        <button class="button" type="submit" disabled="@_isBusy">Войти</button>
+
+        <button class="button" type="submit" disabled="@_isBusy">
+            @(_isBusy ? "Вход..." : "Войти")
+        </button>
+
         @if (!string.IsNullOrWhiteSpace(_error))
         {
             <div class="alert">@_error</div>
@@ -22,18 +33,22 @@
 </SectionCard>
 
 @code {
-    private LoginRequest _model = new(string.Empty, string.Empty);
+    private readonly LoginFormModel _form = new();
     private string? _error;
     private bool _isBusy;
 
     private async Task HandleLoginAsync()
     {
+        if (_isBusy) return;
+
         _error = null;
         _isBusy = true;
+
         try
         {
-            await AuthService.LoginAsync(_model);
-            NavigationManager.NavigateTo("/");
+            var request = new LoginRequest(_form.Email, _form.Password);
+            await AuthService.LoginAsync(request);
+            Nav.NavigateTo("/");
         }
         catch (Exception ex)
         {
